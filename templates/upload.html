@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block title %}CSV取込 - 出欠確認{% endblock %}
+{% block content %}
+<section class="card">
+    <h1>CSV取込</h1>
+    <p class="hint">
+        ヘッダー行に「<strong>名前</strong>」カラムを含む CSV をアップロードしてください。
+        他のカラムは自動で検出され、一覧画面に表示されます。
+        既存データは上書きされます。
+    </p>
+    <form method="post" enctype="multipart/form-data">
+        <label for="csv_file">CSV ファイル</label>
+        <input id="csv_file" name="csv_file" type="file" accept=".csv,text/csv" required>
+        <button type="submit" class="primary">アップロード</button>
+        <a class="ghost button" href="{{ url_for('index') }}">キャンセル</a>
+    </form>
+</section>
+{% endblock %}

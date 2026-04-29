@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}出欠一覧{% endblock %}
+{% block content %}
+<section class="card">
+    <div class="header-row">
+        <h1>出欠一覧</h1>
+        <div class="counter" aria-live="polite">
+            <span class="count count-present">出席 <b id="present-count">{{ counts.present }}</b></span>
+            <span class="count count-absent">欠席 <b id="absent-count">{{ counts.absent }}</b></span>
+            <span class="count count-unknown">未確認 <b id="unknown-count">{{ counts.unknown }}</b></span>
+            <span class="count count-total">/ <b id="total-count">{{ counts.total }}</b> 名</span>
+        </div>
+    </div>
+
+    {% if members %}
+    <div class="actions">
+        <button id="reset-btn" class="ghost" type="button">全員を未確認に戻す</button>
+        <a class="ghost button" href="{{ url_for('upload') }}">CSVを再アップロード</a>
+    </div>
+
+    <div class="toolbar">
+        <input type="search"
+               id="search-input"
+               class="search-input"
+               placeholder="名前や項目で検索…"
+               autocomplete="off"
+               inputmode="search">
+        <label class="filter">
+            <span class="filter-label">出欠</span>
+            <select id="filter-status" class="filter-select">
+                <option value="">すべて</option>
+                <option value="{{ STATUS_PRESENT }}">出席</option>
+                <option value="{{ STATUS_ABSENT }}">欠席</option>
+                <option value="{{ STATUS_UNKNOWN }}">未確認</option>
+            </select>
+        </label>
+        {% for fc in filter_columns %}
+        <label class="filter">
+            <span class="filter-label">{{ fc.name }}</span>
+            <select class="filter-select filter-extra" data-col="{{ fc.name }}">
+                <option value="">すべて</option>
+                {% for v in fc.options %}
+                <option value="{{ v }}">{{ v if v else '(空)' }}</option>
+                {% endfor %}
+            </select>
+        </label>
+        {% endfor %}
+        <button id="filter-clear" class="ghost" type="button">クリア</button>
+    </div>
+
+    <div class="table-wrap">
+        <table class="attendance-table">
+            <thead>
+                <tr>
+                    <th>出欠</th>
+                    <th>名前</th>
+                    {% for col in extra_columns %}<th>{{ col }}</th>{% endfor %}
+                </tr>
+            </thead>
+            <tbody id="member-rows">
+                {% for m in members %}
+                <tr data-status="{{ m.status }}">
+                    <td class="status-cell">
+                        <select class="status-select status-{{ m.status }}"
+                                data-id="{{ m.id }}"
+                                aria-label="{{ m.name }}の出欠">
+                            <option value="{{ STATUS_UNKNOWN }}" {% if m.status == STATUS_UNKNOWN %}selected{% endif %}>未確認</option>
+                            <option value="{{ STATUS_PRESENT }}" {% if m.status == STATUS_PRESENT %}selected{% endif %}>出席</option>
+                            <option value="{{ STATUS_ABSENT }}" {% if m.status == STATUS_ABSENT %}selected{% endif %}>欠席</option>
+                        </select>
+                    </td>
+                    <td class="name-cell" data-col="名前">{{ m.name }}</td>
+                    {% for col in extra_columns %}
+                        <td data-col="{{ col }}">{{ m.extras.get(col, '') }}</td>
+                    {% endfor %}
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="empty-result" class="empty-result" hidden>該当するメンバーはいません</div>
+    </div>
+    {% else %}
+    <div class="empty">
+        <p>まだメンバーが登録されていません。</p>
+        <a class="primary button" href="{{ url_for('upload') }}">CSVをアップロード</a>
+    </div>
+    {% endif %}
+</section>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block title %}ログイン - 出欠確認{% endblock %}
+{% block content %}
+<section class="card login-card">
+    <h1>ログイン</h1>
+    <form method="post" action="{{ url_for('login') }}">
+        <label for="password">パスワード</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required autofocus>
+        <button type="submit" class="primary">ログイン</button>
+    </form>
+</section>
+{% endblock %}
