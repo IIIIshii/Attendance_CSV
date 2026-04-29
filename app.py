@@ -1,4 +1,5 @@
 import csv
+import functools
 import hmac
 import io
 import json
@@ -28,10 +29,29 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "attendance.db"
 NAME_COLUMN = "名前"
 
-PASSWORD = os.environ.get("ATTENDANCE_PASSWORD")
-if not PASSWORD:
+ROLE_ROOT = "root"
+ROLE_USER = "user"
+
+ROOT_PASSWORD = os.environ.get("ROOT_PASSWORD")
+USER_PASSWORD = os.environ.get("USER_PASSWORD")
+
+# 旧 ATTENDANCE_PASSWORD が残っているケースへの分かりやすいガイド
+if not ROOT_PASSWORD or not USER_PASSWORD:
+    legacy = os.environ.get("ATTENDANCE_PASSWORD")
+    hint = ""
+    if legacy:
+        hint = (
+            "\n（旧 ATTENDANCE_PASSWORD は廃止されました。"
+            "ROOT_PASSWORD と USER_PASSWORD を別々に設定してください）"
+        )
     raise RuntimeError(
-        "ATTENDANCE_PASSWORD が設定されていません。.env を確認してください。"
+        "ROOT_PASSWORD と USER_PASSWORD を .env に設定してください。"
+        ".env.example を参照してください。" + hint
+    )
+
+if ROOT_PASSWORD == USER_PASSWORD:
+    raise RuntimeError(
+        "ROOT_PASSWORD と USER_PASSWORD には別の値を設定してください。"
     )
 
 app = Flask(__name__)
@@ -127,8 +147,34 @@ init_db()
 app.secret_key = load_secret_key()
 
 
+def current_role() -> str | None:
+    return session.get("role")
+
+
 def is_authenticated() -> bool:
-    return bool(session.get("authenticated"))
+    return current_role() in {ROLE_ROOT, ROLE_USER}
+
+
+def is_root() -> bool:
+    return current_role() == ROLE_ROOT
+
+
+def root_required(view):
+    @functools.wraps(view)
+    def wrapper(*args, **kwargs):
+        if not is_root():
+            if request.path.startswith("/api/"):
+                abort(403)
+            flash("この操作は管理者(root)のみ実行できます", "error")
+            return redirect(url_for("index"))
+        return view(*args, **kwargs)
+
+    return wrapper
+
+
+@app.context_processor
+def inject_role():
+    return {"is_root": is_root(), "current_role": current_role()}
 
 
 @app.before_request
@@ -147,9 +193,15 @@ def require_login():
 def login():
     if request.method == "POST":
         submitted = request.form.get("password", "")
-        if hmac.compare_digest(submitted, PASSWORD):
+        role = None
+        # compare_digest を両方走らせて、結果でロールを判定（タイミング攻撃対策）
+        if hmac.compare_digest(submitted, ROOT_PASSWORD):
+            role = ROLE_ROOT
+        elif hmac.compare_digest(submitted, USER_PASSWORD):
+            role = ROLE_USER
+        if role:
             session.clear()
-            session["authenticated"] = True
+            session["role"] = role
             next_url = request.args.get("next") or url_for("index")
             if not next_url.startswith("/"):
                 next_url = url_for("index")
@@ -227,6 +279,7 @@ def build_filter_columns(
 
 
 @app.route("/upload", methods=["GET", "POST"])
+@root_required
 def upload():
     if request.method == "POST":
         file = request.files.get("csv_file")
@@ -361,6 +414,7 @@ def api_set(member_id: int):
 
 
 @app.post("/api/reset")
+@root_required
 def api_reset():
     db = get_db()
     with db:

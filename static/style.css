@@ -49,9 +49,31 @@ a:hover { text-decoration: underline; }
     color: var(--text);
 }
 
-.site-header nav { display: flex; gap: 16px; }
+.site-header nav { display: flex; gap: 16px; align-items: center; }
 .site-header nav a { color: var(--muted); }
 .site-header nav a:hover { color: var(--primary); }
+
+.role-badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 1.4;
+    border: 1px solid transparent;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+.role-badge.role-root {
+    background: #fef3c7;
+    color: #92400e;
+    border-color: #fcd34d;
+}
+.role-badge.role-user {
+    background: #e0e7ff;
+    color: #3730a3;
+    border-color: #c7d2fe;
+}
 
 main {
     max-width: 1080px;

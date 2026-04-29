@@ -9,10 +9,13 @@
 <body>
     <header class="site-header">
         <a class="brand" href="{{ url_for('index') }}">出欠確認</a>
-        {% if session.get('authenticated') %}
+        {% if current_role %}
         <nav>
             <a href="{{ url_for('index') }}">一覧</a>
+            {% if is_root %}
             <a href="{{ url_for('upload') }}">CSV取込</a>
+            {% endif %}
+            <span class="role-badge role-{{ current_role }}">{{ current_role }}</span>
             <a href="{{ url_for('logout') }}">ログアウト</a>
         </nav>
         {% endif %}

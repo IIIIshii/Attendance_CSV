@@ -13,10 +13,12 @@
     </div>
 
     {% if members %}
+    {% if is_root %}
     <div class="actions">
         <button id="reset-btn" class="ghost" type="button">全員を未確認に戻す</button>
         <a class="ghost button" href="{{ url_for('upload') }}">CSVを再アップロード</a>
     </div>
+    {% endif %}
 
     <div class="toolbar">
         <input type="search"
@@ -82,7 +84,11 @@
     {% else %}
     <div class="empty">
         <p>まだメンバーが登録されていません。</p>
+        {% if is_root %}
         <a class="primary button" href="{{ url_for('upload') }}">CSVをアップロード</a>
+        {% else %}
+        <p class="hint">管理者(root)が CSV をアップロードするまでお待ちください。</p>
+        {% endif %}
     </div>
     {% endif %}
 </section>
