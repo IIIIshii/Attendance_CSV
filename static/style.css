@@ -354,6 +354,60 @@ button.ghost:hover, .ghost.button:hover {
     color: var(--muted);
 }
 
+/* 当日変更ログ */
+.change-log-section {
+    background: #fffbeb;
+    border: 1px solid #fcd34d;
+    border-radius: 10px;
+    padding: 14px 20px;
+    margin-bottom: 20px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+}
+.change-log-header {
+    font-weight: 700;
+    font-size: 0.9rem;
+    color: #92400e;
+    margin-bottom: 8px;
+}
+.change-log-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-height: 160px;
+    overflow-y: auto;
+}
+.change-log-list li { font-size: 0.9rem; color: #78350f; }
+.log-time { color: #a16207; font-size: 0.8rem; margin-left: 8px; }
+
+/* 班番号入力 */
+.group-num-cell { width: 60px; text-align: center; color: var(--muted); font-size: 0.9rem; }
+.group-cell { width: 90px; }
+.group-input {
+    width: 76px;
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: var(--surface);
+    text-align: center;
+    transition: border-color 0.15s, background-color 0.3s;
+}
+.group-input:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.15);
+}
+.group-input.group-saved {
+    background-color: var(--present-soft);
+    border-color: var(--present);
+}
+
 @media (max-width: 600px) {
     main { padding: 16px 8px 32px; }
     .card { padding: 16px; }

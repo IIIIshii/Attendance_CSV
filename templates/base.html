@@ -12,6 +12,7 @@
         {% if current_role %}
         <nav>
             <a href="{{ url_for('index') }}">一覧</a>
+            <a href="{{ url_for('group_page') }}">班管理</a>
             {% if is_root %}
             <a href="{{ url_for('upload') }}">CSV取込</a>
             {% endif %}

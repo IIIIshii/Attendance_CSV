@@ -1,0 +1,165 @@
+{% extends "base.html" %}
+{% block title %}班管理{% endblock %}
+{% block content %}
+
+<section id="change-log-section" class="change-log-section" {% if not change_log %}hidden{% endif %}>
+    <div class="change-log-header">当日変更ログ</div>
+    <ul id="change-log-list" class="change-log-list">
+        {% for entry in change_log %}
+        <li>当日変更：{{ entry.member_name }}さん
+            {{ entry.old_group if entry.old_group else '（未割当）' }}班
+            → {{ entry.new_group if entry.new_group else '（未割当）' }}班
+            <span class="log-time">{{ entry.changed_at }}</span>
+        </li>
+        {% endfor %}
+    </ul>
+</section>
+
+<section class="card">
+    <h1>班管理</h1>
+    {% if members %}
+    <div class="toolbar">
+        <input type="search"
+               id="group-search"
+               class="search-input"
+               placeholder="名前{% if has_line_col %}・LINEの名前{% endif %}・班で検索…"
+               autocomplete="off"
+               inputmode="search">
+    </div>
+
+    <div class="table-wrap">
+        <table class="attendance-table">
+            <thead>
+                <tr>
+                    <th>名前</th>
+                    {% if has_line_col %}<th>LINEの名前</th>{% endif %}
+                    <th>班</th>
+                </tr>
+            </thead>
+            <tbody id="group-rows">
+                {% for m in members %}
+                <tr>
+                    <td class="name-cell" data-col="名前">{{ m.name }}</td>
+                    {% if has_line_col %}
+                    <td data-col="LINEの名前">{{ m.line_name }}</td>
+                    {% endif %}
+                    <td class="group-cell" data-col="班">
+                        <input type="text"
+                               class="group-input"
+                               data-id="{{ m.id }}"
+                               data-orig="{{ m.group_num }}"
+                               value="{{ m.group_num }}"
+                               placeholder="―"
+                               maxlength="20"
+                               aria-label="{{ m.name }}の班">
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+        <div id="group-empty-result" class="empty-result" hidden>該当するメンバーはいません</div>
+    </div>
+    {% else %}
+    <div class="empty">
+        <p>まだメンバーが登録されていません。</p>
+        {% if is_root %}
+        <a class="primary button" href="{{ url_for('upload') }}">CSVをアップロード</a>
+        {% else %}
+        <p class="hint">管理者(root)が CSV をアップロードするまでお待ちください。</p>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+<script>
+(function () {
+    "use strict";
+
+    function updateChangeLog(logEntries) {
+        const section = document.getElementById("change-log-section");
+        const list = document.getElementById("change-log-list");
+        if (!section || !list) return;
+        if (!logEntries || logEntries.length === 0) {
+            section.hidden = true;
+            return;
+        }
+        section.hidden = false;
+        list.innerHTML = logEntries.map(function (e) {
+            const from = e.old_group || "（未割当）";
+            const to = e.new_group || "（未割当）";
+            return "<li>当日変更：" + e.member_name + "さん " + from + "班 → " + to + "班"
+                + " <span class=\"log-time\">" + e.changed_at + "</span></li>";
+        }).join("");
+    }
+
+    // 検索フィルタ
+    const searchInput = document.getElementById("group-search");
+    const tbody = document.getElementById("group-rows");
+    const emptyResult = document.getElementById("group-empty-result");
+
+    function applySearch() {
+        if (!tbody) return;
+        const q = searchInput ? searchInput.value.trim().toLowerCase() : "";
+        let visible = 0;
+        tbody.querySelectorAll("tr").forEach(function (row) {
+            const text = Array.from(row.querySelectorAll("td[data-col]"))
+                .map(function (td) {
+                    const inp = td.querySelector("input");
+                    return (inp ? inp.value : td.textContent).toLowerCase();
+                })
+                .join(" ");
+            const show = !q || text.includes(q);
+            row.classList.toggle("row-hidden", !show);
+            if (show) visible++;
+        });
+        if (emptyResult) emptyResult.hidden = visible !== 0;
+    }
+
+    if (searchInput) searchInput.addEventListener("input", applySearch);
+
+    // 班番号保存
+    document.querySelectorAll(".group-input").forEach(function (input) {
+        var origValue = input.dataset.orig;
+
+        async function saveGroup() {
+            const newVal = input.value.trim();
+            if (newVal === origValue) return;
+            const id = input.dataset.id;
+            input.disabled = true;
+            try {
+                const res = await fetch("/api/set_group/" + id, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-Requested-With": "fetch",
+                    },
+                    body: new URLSearchParams({ group_num: newVal }),
+                });
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const data = await res.json();
+                origValue = data.group_num;
+                input.dataset.orig = origValue;
+                input.value = origValue;
+                if (data.changed) updateChangeLog(data.log);
+                input.classList.add("group-saved");
+                setTimeout(function () { input.classList.remove("group-saved"); }, 800);
+            } catch (err) {
+                console.error(err);
+                input.value = origValue;
+                alert("班の更新に失敗しました。再度お試しください。");
+            } finally {
+                input.disabled = false;
+            }
+        }
+
+        input.addEventListener("blur", saveGroup);
+        input.addEventListener("keydown", function (e) {
+            if (e.key === "Enter") {
+                e.preventDefault();
+                input.blur();
+            }
+        });
+    });
+})();
+</script>
+{% endblock %}

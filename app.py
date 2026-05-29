@@ -6,6 +6,7 @@ import json
 import os
 import secrets
 import sqlite3
+from datetime import datetime
 from pathlib import Path
 
 import chardet
@@ -28,6 +29,7 @@ load_dotenv()
 BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "attendance.db"
 NAME_COLUMN = "名前"
+GROUP_COLUMN = "班"
 
 ROLE_ROOT = "root"
 ROLE_USER = "user"
@@ -96,6 +98,13 @@ def init_db() -> None:
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS group_change_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                member_name TEXT NOT NULL,
+                old_group TEXT NOT NULL,
+                new_group TEXT NOT NULL,
+                changed_at TEXT NOT NULL
+            );
             """
         )
         # 旧スキーマ (present 列) からのマイグレーション
@@ -112,6 +121,10 @@ def init_db() -> None:
             except sqlite3.OperationalError:
                 # SQLite 3.35 未満: 列削除は諦めるが status は使えるので動作はする
                 pass
+        if "group_num" not in cols:
+            conn.execute(
+                "ALTER TABLE members ADD COLUMN group_num TEXT NOT NULL DEFAULT ''"
+            )
 
 
 def meta_get(conn: sqlite3.Connection, key: str) -> str | None:
@@ -233,7 +246,7 @@ def index():
     extra_columns_raw = meta_get(db, "extra_columns")
     extra_columns = json.loads(extra_columns_raw) if extra_columns_raw else []
     rows = db.execute(
-        "SELECT id, name, extra_data, status FROM members ORDER BY sort_order ASC"
+        "SELECT id, name, extra_data, status, group_num FROM members ORDER BY sort_order ASC"
     ).fetchall()
     members = []
     for row in rows:
@@ -246,11 +259,15 @@ def index():
                 "id": row["id"],
                 "name": row["name"],
                 "status": row["status"],
+                "group_num": row["group_num"],
                 "extras": extras,
             }
         )
     counts = status_counts(members)
     filter_columns = build_filter_columns(members, extra_columns)
+    group_values = sorted({m["group_num"] or "" for m in members})
+    if 2 <= len(group_values) <= MAX_FILTER_VALUES:
+        filter_columns = [{"name": "班", "options": group_values}] + filter_columns
     return render_template(
         "index.html",
         members=members,
@@ -317,8 +334,11 @@ def upload():
             return render_template("upload.html")
 
         # None 列名（空白ヘッダーや列ずれ）は無視
+        # GROUP_COLUMN は group_num 専用列として扱い extra_columns から除外
+        has_group_col = GROUP_COLUMN in reader.fieldnames
         extra_columns = [
-            c for c in reader.fieldnames if c is not None and c != NAME_COLUMN
+            c for c in reader.fieldnames
+            if c is not None and c != NAME_COLUMN and c != GROUP_COLUMN
         ]
 
         records = []
@@ -326,9 +346,10 @@ def upload():
             name = (row.get(NAME_COLUMN) or "").strip()
             if not name:
                 continue  # 名前のない行はスキップ
+            group_num = (row.get(GROUP_COLUMN) or "").strip() if has_group_col else ""
             extras = {col: (row.get(col) or "") for col in extra_columns}
             records.append(
-                (name, json.dumps(extras, ensure_ascii=False), STATUS_UNKNOWN, idx)
+                (name, json.dumps(extras, ensure_ascii=False), STATUS_UNKNOWN, idx, group_num)
             )
 
         if not records:
@@ -340,9 +361,10 @@ def upload():
             with db:
                 db.execute("DELETE FROM members")
                 db.execute("DELETE FROM sqlite_sequence WHERE name = 'members'")
+                db.execute("DELETE FROM group_change_log")
                 db.executemany(
-                    "INSERT INTO members(name, extra_data, status, sort_order) "
-                    "VALUES(?, ?, ?, ?)",
+                    "INSERT INTO members(name, extra_data, status, sort_order, group_num) "
+                    "VALUES(?, ?, ?, ?, ?)",
                     records,
                 )
                 meta_set(
@@ -420,6 +442,79 @@ def api_reset():
     with db:
         db.execute("UPDATE members SET status = ?", (STATUS_UNKNOWN,))
     return jsonify(_counts_payload(db))
+
+
+LINE_COLUMN = "LINEの名前"
+
+
+@app.route("/group")
+def group_page():
+    db = get_db()
+    extra_columns_raw = meta_get(db, "extra_columns")
+    extra_columns = json.loads(extra_columns_raw) if extra_columns_raw else []
+    has_line_col = LINE_COLUMN in extra_columns
+    rows = db.execute(
+        "SELECT id, name, extra_data, group_num FROM members ORDER BY sort_order ASC"
+    ).fetchall()
+    members = []
+    for row in rows:
+        try:
+            extras = json.loads(row["extra_data"])
+        except (json.JSONDecodeError, TypeError):
+            extras = {}
+        members.append(
+            {
+                "id": row["id"],
+                "name": row["name"],
+                "group_num": row["group_num"],
+                "line_name": extras.get(LINE_COLUMN, "") if has_line_col else None,
+            }
+        )
+    change_log = [
+        dict(r)
+        for r in db.execute(
+            "SELECT member_name, old_group, new_group, changed_at"
+            " FROM group_change_log ORDER BY id DESC"
+        ).fetchall()
+    ]
+    return render_template(
+        "group.html",
+        members=members,
+        has_line_col=has_line_col,
+        change_log=change_log,
+    )
+
+
+@app.post("/api/set_group/<int:member_id>")
+def api_set_group(member_id: int):
+    new_group = (request.form.get("group_num", "")).strip()
+    db = get_db()
+    row = db.execute(
+        "SELECT name, group_num FROM members WHERE id = ?", (member_id,)
+    ).fetchone()
+    if row is None:
+        return jsonify({"error": "not found"}), 404
+    old_group = row["group_num"]
+    if old_group == new_group:
+        return jsonify({"id": member_id, "group_num": new_group, "changed": False})
+    changed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    with db:
+        db.execute(
+            "UPDATE members SET group_num = ? WHERE id = ?", (new_group, member_id)
+        )
+        db.execute(
+            "INSERT INTO group_change_log(member_name, old_group, new_group, changed_at)"
+            " VALUES(?, ?, ?, ?)",
+            (row["name"], old_group, new_group, changed_at),
+        )
+    log_entries = [
+        dict(r)
+        for r in db.execute(
+            "SELECT member_name, old_group, new_group, changed_at"
+            " FROM group_change_log ORDER BY id DESC"
+        ).fetchall()
+    ]
+    return jsonify({"id": member_id, "group_num": new_group, "changed": True, "log": log_entries})
 
 
 @app.errorhandler(413)
