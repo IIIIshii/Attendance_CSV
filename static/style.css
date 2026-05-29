@@ -384,18 +384,24 @@ button.ghost:hover, .ghost.button:hover {
 .change-log-list li { font-size: 0.9rem; color: #78350f; }
 .log-time { color: #a16207; font-size: 0.8rem; margin-left: 8px; }
 
-/* 班番号入力 */
+/* 班セレクト */
 .group-num-cell { width: 60px; text-align: center; color: var(--muted); font-size: 0.9rem; }
-.group-cell { width: 90px; }
+.group-cell { width: 100px; }
 .group-input {
-    width: 76px;
-    padding: 6px 8px;
+    width: 90px;
+    min-height: 38px;
+    padding: 6px 26px 6px 10px;
     border: 1px solid var(--border);
     border-radius: 6px;
     font-size: 0.9rem;
     font-family: inherit;
     background: var(--surface);
-    text-align: center;
+    appearance: none;
+    -webkit-appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath fill='%236b7280' d='M0 0l5 6 5-6z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 8px center;
+    cursor: pointer;
     transition: border-color 0.15s, background-color 0.3s;
 }
 .group-input:focus {

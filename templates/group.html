@@ -44,14 +44,15 @@
                     <td data-col="LINEの名前">{{ m.line_name }}</td>
                     {% endif %}
                     <td class="group-cell" data-col="班">
-                        <input type="text"
-                               class="group-input"
-                               data-id="{{ m.id }}"
-                               data-orig="{{ m.group_num }}"
-                               value="{{ m.group_num }}"
-                               placeholder="―"
-                               maxlength="20"
-                               aria-label="{{ m.name }}の班">
+                        <select class="group-input"
+                                data-id="{{ m.id }}"
+                                data-orig="{{ m.group_num }}"
+                                aria-label="{{ m.name }}の班">
+                            <option value="">―</option>
+                            {% for opt in group_options %}
+                            <option value="{{ opt }}" {% if m.group_num == opt %}selected{% endif %}>{{ opt }}</option>
+                            {% endfor %}
+                        </select>
                     </td>
                 </tr>
                 {% endfor %}
@@ -104,7 +105,7 @@
         tbody.querySelectorAll("tr").forEach(function (row) {
             const text = Array.from(row.querySelectorAll("td[data-col]"))
                 .map(function (td) {
-                    const inp = td.querySelector("input");
+                    const inp = td.querySelector("input, select");
                     return (inp ? inp.value : td.textContent).toLowerCase();
                 })
                 .join(" ");
@@ -117,15 +118,14 @@
 
     if (searchInput) searchInput.addEventListener("input", applySearch);
 
-    // 班番号保存
-    document.querySelectorAll(".group-input").forEach(function (input) {
-        var origValue = input.dataset.orig;
-
-        async function saveGroup() {
-            const newVal = input.value.trim();
-            if (newVal === origValue) return;
-            const id = input.dataset.id;
-            input.disabled = true;
+    // 班保存
+    document.querySelectorAll(".group-input").forEach(function (select) {
+        select.addEventListener("change", async function () {
+            const newVal = select.value;
+            const origVal = select.dataset.orig;
+            if (newVal === origVal) return;
+            const id = select.dataset.id;
+            select.disabled = true;
             try {
                 const res = await fetch("/api/set_group/" + id, {
                     method: "POST",
@@ -137,26 +137,19 @@
                 });
                 if (!res.ok) throw new Error("HTTP " + res.status);
                 const data = await res.json();
-                origValue = data.group_num;
-                input.dataset.orig = origValue;
-                input.value = origValue;
-                if (data.changed) updateChangeLog(data.log);
-                input.classList.add("group-saved");
-                setTimeout(function () { input.classList.remove("group-saved"); }, 800);
+                select.dataset.orig = data.group_num;
+                if (data.changed) {
+                    updateChangeLog(data.log);
+                    applySearch();
+                }
+                select.classList.add("group-saved");
+                setTimeout(function () { select.classList.remove("group-saved"); }, 800);
             } catch (err) {
                 console.error(err);
-                input.value = origValue;
+                select.value = origVal;
                 alert("班の更新に失敗しました。再度お試しください。");
             } finally {
-                input.disabled = false;
-            }
-        }
-
-        input.addEventListener("blur", saveGroup);
-        input.addEventListener("keydown", function (e) {
-            if (e.key === "Enter") {
-                e.preventDefault();
-                input.blur();
+                select.disabled = false;
             }
         });
     });

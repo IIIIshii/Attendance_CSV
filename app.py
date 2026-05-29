@@ -470,6 +470,9 @@ def group_page():
                 "line_name": extras.get(LINE_COLUMN, "") if has_line_col else None,
             }
         )
+    _derived = sorted({m["group_num"] for m in members if m["group_num"]})
+    _fixed = [o for o in ["サブ1", "サブ2"] if o not in _derived]
+    group_options = _derived + _fixed
     change_log = [
         dict(r)
         for r in db.execute(
@@ -481,6 +484,7 @@ def group_page():
         "group.html",
         members=members,
         has_line_col=has_line_col,
+        group_options=group_options,
         change_log=change_log,
     )
 
