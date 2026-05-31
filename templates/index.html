@@ -55,9 +55,9 @@
             <thead>
                 <tr>
                     <th>出欠</th>
-                    <th>名前</th>
-                    <th>班</th>
-                    {% for col in extra_columns %}<th>{{ col }}</th>{% endfor %}
+                    <th data-col="名前">名前</th>
+                    <th data-col="班">班</th>
+                    {% for col in extra_columns %}<th data-col="{{ col }}">{{ col }}</th>{% endfor %}
                 </tr>
             </thead>
             <tbody id="member-rows">
