@@ -300,7 +300,7 @@ button.ghost:hover, .ghost.button:hover {
 .attendance-table tr:last-child td { border-bottom: none; }
 .attendance-table tr.row-hidden { display: none; }
 
-.name-cell { font-weight: 600; min-width: 8em; white-space: nowrap; }
+.name-cell { font-weight: 600; min-width: 10em; white-space: nowrap; }
 .status-cell { width: 1px; padding-right: 16px; }
 
 /* 出欠 select（行内） */
@@ -355,7 +355,7 @@ button.ghost:hover, .ghost.button:hover {
 }
 
 /* 班セレクト */
-.group-num-cell { width: auto; min-width: 5em; text-align: center; color: var(--muted); font-size: 0.9rem; }
+.group-num-cell { width: auto; min-width: 7em; white-space: nowrap; text-align: center; color: var(--muted); font-size: 0.9rem; }
 .group-cell { width: 100px; }
 .group-input {
     width: 90px;
@@ -423,6 +423,8 @@ button.ghost:hover, .ghost.button:hover {
     .card { padding: 16px; }
     .attendance-table th,
     .attendance-table td { padding: 10px 6px; }
+    .name-cell { min-width: 9em; }
+    .group-num-cell { min-width: 6em; }
     .status-select { min-width: 86px; font-size: 0.9rem; }
     .toolbar { padding: 10px; }
     .search-input { flex-basis: 100%; }
