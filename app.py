@@ -6,7 +6,6 @@ import json
 import os
 import secrets
 import sqlite3
-from datetime import datetime
 from pathlib import Path
 
 import chardet
@@ -97,13 +96,6 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS meta (
                 key TEXT PRIMARY KEY,
                 value TEXT NOT NULL
-            );
-            CREATE TABLE IF NOT EXISTS group_change_log (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                member_name TEXT NOT NULL,
-                old_group TEXT NOT NULL,
-                new_group TEXT NOT NULL,
-                changed_at TEXT NOT NULL
             );
             """
         )
@@ -361,7 +353,6 @@ def upload():
             with db:
                 db.execute("DELETE FROM members")
                 db.execute("DELETE FROM sqlite_sequence WHERE name = 'members'")
-                db.execute("DELETE FROM group_change_log")
                 db.executemany(
                     "INSERT INTO members(name, extra_data, status, sort_order, group_num) "
                     "VALUES(?, ?, ?, ?, ?)",
@@ -473,19 +464,11 @@ def group_page():
     _derived = sorted({m["group_num"] for m in members if m["group_num"]})
     _fixed = [o for o in ["サブ1", "サブ2"] if o not in _derived]
     group_options = _derived + _fixed
-    change_log = [
-        dict(r)
-        for r in db.execute(
-            "SELECT member_name, old_group, new_group, changed_at"
-            " FROM group_change_log ORDER BY id DESC"
-        ).fetchall()
-    ]
     return render_template(
         "group.html",
         members=members,
         has_line_col=has_line_col,
         group_options=group_options,
-        change_log=change_log,
     )
 
 
@@ -494,31 +477,18 @@ def api_set_group(member_id: int):
     new_group = (request.form.get("group_num", "")).strip()
     db = get_db()
     row = db.execute(
-        "SELECT name, group_num FROM members WHERE id = ?", (member_id,)
+        "SELECT group_num FROM members WHERE id = ?", (member_id,)
     ).fetchone()
     if row is None:
         return jsonify({"error": "not found"}), 404
     old_group = row["group_num"]
     if old_group == new_group:
         return jsonify({"id": member_id, "group_num": new_group, "changed": False})
-    changed_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with db:
         db.execute(
             "UPDATE members SET group_num = ? WHERE id = ?", (new_group, member_id)
         )
-        db.execute(
-            "INSERT INTO group_change_log(member_name, old_group, new_group, changed_at)"
-            " VALUES(?, ?, ?, ?)",
-            (row["name"], old_group, new_group, changed_at),
-        )
-    log_entries = [
-        dict(r)
-        for r in db.execute(
-            "SELECT member_name, old_group, new_group, changed_at"
-            " FROM group_change_log ORDER BY id DESC"
-        ).fetchall()
-    ]
-    return jsonify({"id": member_id, "group_num": new_group, "changed": True, "log": log_entries})
+    return jsonify({"id": member_id, "group_num": new_group, "changed": True})
 
 
 @app.errorhandler(413)
