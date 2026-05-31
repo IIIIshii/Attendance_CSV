@@ -31,6 +31,8 @@ NAME_COLUMN = "名前"
 GROUP_COLUMN = "班"
 DEFAULT_GROUPS = ["サブ1", "サブ2"]
 MAX_GROUP_NAME_LEN = 50
+# 班名の表示正規化（CSV の旧表記 → 短縮表記）
+GROUP_RENAME_MAP = {"新1回生": "1", "新2回生": "2"}
 
 ROLE_ROOT = "root"
 ROLE_USER = "user"
@@ -119,6 +121,32 @@ def init_db() -> None:
             conn.execute(
                 "ALTER TABLE members ADD COLUMN group_num TEXT NOT NULL DEFAULT ''"
             )
+        # 既存データの班名を短縮表記へ正規化（新1回生→1, 新2回生→2）
+        for old, new in GROUP_RENAME_MAP.items():
+            conn.execute(
+                "UPDATE members SET group_num = ? WHERE group_num = ?", (new, old)
+            )
+        groups_row = conn.execute(
+            "SELECT value FROM meta WHERE key = 'groups'"
+        ).fetchone()
+        if groups_row:
+            try:
+                stored = json.loads(groups_row[0])
+            except (json.JSONDecodeError, TypeError):
+                stored = None
+            if isinstance(stored, list):
+                seen: set[str] = set()
+                normalized: list[str] = []
+                for grp in stored:
+                    grp = GROUP_RENAME_MAP.get(grp, grp)
+                    if grp not in seen:
+                        seen.add(grp)
+                        normalized.append(grp)
+                if normalized != stored:
+                    conn.execute(
+                        "UPDATE meta SET value = ? WHERE key = 'groups'",
+                        (json.dumps(normalized, ensure_ascii=False),),
+                    )
 
 
 def meta_get(conn: sqlite3.Connection, key: str) -> str | None:
@@ -341,6 +369,7 @@ def upload():
             if not name:
                 continue  # 名前のない行はスキップ
             group_num = (row.get(GROUP_COLUMN) or "").strip() if has_group_col else ""
+            group_num = GROUP_RENAME_MAP.get(group_num, group_num)
             extras = {col: (row.get(col) or "") for col in extra_columns}
             records.append(
                 (name, json.dumps(extras, ensure_ascii=False), STATUS_UNKNOWN, idx, group_num)
