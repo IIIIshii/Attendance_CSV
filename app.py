@@ -29,6 +29,8 @@ BASE_DIR = Path(__file__).resolve().parent
 DB_PATH = BASE_DIR / "attendance.db"
 NAME_COLUMN = "名前"
 GROUP_COLUMN = "班"
+DEFAULT_GROUPS = ["サブ1", "サブ2"]
+MAX_GROUP_NAME_LEN = 50
 
 ROLE_ROOT = "root"
 ROLE_USER = "user"
@@ -363,6 +365,16 @@ def upload():
                     "extra_columns",
                     json.dumps(extra_columns, ensure_ascii=False),
                 )
+                csv_groups = sorted({rec[4] for rec in records if rec[4]})
+                meta_set(
+                    db,
+                    "groups",
+                    json.dumps(
+                        csv_groups
+                        + [g for g in DEFAULT_GROUPS if g not in csv_groups],
+                        ensure_ascii=False,
+                    ),
+                )
         except sqlite3.Error as exc:
             flash(f"DB エラー: {exc}", "error")
             return render_template("upload.html")
@@ -438,6 +450,29 @@ def api_reset():
 LINE_COLUMN = "LINEの名前"
 
 
+def get_groups(db: sqlite3.Connection) -> list[str]:
+    """班の選択肢を返す。meta に保存された班リストを優先し、
+    メンバーが属する班も欠落しないよう補完する。"""
+    raw = meta_get(db, "groups")
+    stored: list[str] = []
+    if raw:
+        try:
+            stored = [str(g) for g in json.loads(raw)]
+        except (json.JSONDecodeError, TypeError):
+            stored = []
+    derived = [
+        r["group_num"]
+        for r in db.execute(
+            "SELECT DISTINCT group_num FROM members "
+            "WHERE group_num != '' ORDER BY group_num"
+        ).fetchall()
+    ]
+    if stored:
+        return stored + [g for g in derived if g not in stored]
+    # 班リスト未保存の既存 DB 向けフォールバック（保存はしない）
+    return derived + [g for g in DEFAULT_GROUPS if g not in derived]
+
+
 @app.route("/group")
 def group_page():
     db = get_db()
@@ -461,9 +496,7 @@ def group_page():
                 "line_name": extras.get(LINE_COLUMN, "") if has_line_col else None,
             }
         )
-    _derived = sorted({m["group_num"] for m in members if m["group_num"]})
-    _fixed = [o for o in ["サブ1", "サブ2"] if o not in _derived]
-    group_options = _derived + _fixed
+    group_options = get_groups(db)
     return render_template(
         "group.html",
         members=members,
@@ -489,6 +522,49 @@ def api_set_group(member_id: int):
             "UPDATE members SET group_num = ? WHERE id = ?", (new_group, member_id)
         )
     return jsonify({"id": member_id, "group_num": new_group, "changed": True})
+
+
+@app.post("/api/groups/add")
+def api_add_group():
+    name = (request.form.get("name", "")).strip()
+    if not name:
+        return jsonify({"error": "班名を入力してください"}), 400
+    if len(name) > MAX_GROUP_NAME_LEN:
+        return jsonify({"error": f"班名は{MAX_GROUP_NAME_LEN}文字以内にしてください"}), 400
+    db = get_db()
+    groups = get_groups(db)
+    if name in groups:
+        return jsonify({"error": "同じ名前の班が既にあります"}), 400
+    groups = groups + [name]
+    with db:
+        meta_set(db, "groups", json.dumps(groups, ensure_ascii=False))
+    return jsonify({"groups": groups, "added": name})
+
+
+@app.post("/api/groups/rename")
+def api_rename_group():
+    old_name = (request.form.get("old_name", "")).strip()
+    new_name = (request.form.get("new_name", "")).strip()
+    if not old_name or not new_name:
+        return jsonify({"error": "班名を入力してください"}), 400
+    if len(new_name) > MAX_GROUP_NAME_LEN:
+        return jsonify({"error": f"班名は{MAX_GROUP_NAME_LEN}文字以内にしてください"}), 400
+    db = get_db()
+    groups = get_groups(db)
+    if old_name not in groups:
+        return jsonify({"error": "対象の班が見つかりません"}), 404
+    if new_name == old_name:
+        return jsonify({"groups": groups, "old_name": old_name, "new_name": new_name})
+    if new_name in groups:
+        return jsonify({"error": "同じ名前の班が既にあります"}), 400
+    new_groups = [new_name if g == old_name else g for g in groups]
+    with db:
+        meta_set(db, "groups", json.dumps(new_groups, ensure_ascii=False))
+        db.execute(
+            "UPDATE members SET group_num = ? WHERE group_num = ?",
+            (new_name, old_name),
+        )
+    return jsonify({"groups": new_groups, "old_name": old_name, "new_name": new_name})
 
 
 @app.errorhandler(413)

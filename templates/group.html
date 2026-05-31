@@ -2,8 +2,35 @@
 {% block title %}班管理{% endblock %}
 {% block content %}
 
+<section class="card group-manager">
+    <h1>班の管理</h1>
+    <form id="group-add-form" class="group-add-form">
+        <input type="text"
+               id="new-group-name"
+               class="search-input"
+               maxlength="50"
+               placeholder="新しい班名"
+               autocomplete="off">
+        <button type="submit" class="primary button">追加</button>
+    </form>
+    {% if group_options %}
+    <ul id="group-manage-list" class="group-manage-list">
+        {% for g in group_options %}
+        <li data-name="{{ g }}">
+            <span class="group-manage-name">{{ g }}</span>
+            <button type="button"
+                    class="group-rename-btn link-button"
+                    data-name="{{ g }}">名前を変更</button>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="hint">班がまだありません。上のフォームから追加してください。</p>
+    {% endif %}
+</section>
+
 <section class="card">
-    <h1>班管理</h1>
+    <h1>班の割り当て</h1>
     {% if members %}
     <div class="toolbar">
         <input type="search"
@@ -119,6 +146,60 @@
                 alert("班の更新に失敗しました。再度お試しください。");
             } finally {
                 select.disabled = false;
+            }
+        });
+    });
+
+    // 班の追加
+    const addForm = document.getElementById("group-add-form");
+    const newGroupInput = document.getElementById("new-group-name");
+    if (addForm) {
+        addForm.addEventListener("submit", async function (ev) {
+            ev.preventDefault();
+            const name = newGroupInput.value.trim();
+            if (!name) return;
+            try {
+                const res = await fetch("/api/groups/add", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-Requested-With": "fetch",
+                    },
+                    body: new URLSearchParams({ name: name }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+                location.reload();
+            } catch (err) {
+                console.error(err);
+                alert(err.message || "班の追加に失敗しました。");
+            }
+        });
+    }
+
+    // 班の名前変更
+    document.querySelectorAll(".group-rename-btn").forEach(function (btn) {
+        btn.addEventListener("click", async function () {
+            const oldName = btn.dataset.name;
+            const input = prompt("「" + oldName + "」の新しい班名を入力してください", oldName);
+            if (input === null) return;
+            const newName = input.trim();
+            if (!newName || newName === oldName) return;
+            try {
+                const res = await fetch("/api/groups/rename", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/x-www-form-urlencoded",
+                        "X-Requested-With": "fetch",
+                    },
+                    body: new URLSearchParams({ old_name: oldName, new_name: newName }),
+                });
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.error || ("HTTP " + res.status));
+                location.reload();
+            } catch (err) {
+                console.error(err);
+                alert(err.message || "班名の変更に失敗しました。");
             }
         });
     });

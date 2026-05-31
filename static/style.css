@@ -384,6 +384,40 @@ button.ghost:hover, .ghost.button:hover {
     border-color: var(--present);
 }
 
+/* 班の管理 */
+.group-add-form {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+.group-add-form .search-input { flex: 1; }
+.group-manage-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.group-manage-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+}
+.group-manage-name { font-weight: 600; }
+.link-button {
+    background: none;
+    border: none;
+    color: var(--primary);
+    cursor: pointer;
+    font-size: 0.9rem;
+    padding: 4px 8px;
+}
+.link-button:hover { text-decoration: underline; }
+
 @media (max-width: 600px) {
     main { padding: 16px 8px 32px; }
     .card { padding: 16px; }
